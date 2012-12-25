@@ -1,8 +1,6 @@
 # -*- encoding: utf-8 -*-
 require 'rubygems'
 require 'mechanize'
-require 'kconv'
-require 'ir_b'
 
 #本棚をlsし、自分のbookscanフォルダーをlsし持っていない本をリストアップする。
 #もしも、ipad3に最適化されたものがあればそれをダウンロードする。
@@ -147,7 +145,7 @@ dl.download_books(diff_id)
 #bookscanにあるが、ダウンロードしていないファイルを表示。
 book_in_pc_text = books_in_pc.join(",")
 
-books_in_bs.each do|b|
+books_in_bs.each do|book|
   unless book_in_pc_text.index(book.split(" ")[-1])
     puts book+"\t"+dl.book2hash[book]
 
