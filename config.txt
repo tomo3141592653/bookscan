@@ -1,0 +1,3 @@
+id : hoge@fuga.com
+pass : hogehoge
+bookfolder : /hoge/fuga/books/
