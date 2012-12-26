@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 require 'rubygems'
 require 'mechanize'
+require 'ir_b'
 
 #本棚をlsし、自分のbookscanフォルダーをlsし持っていない本をリストアップする。
 #もしも、ipad3に最適化されたものがあればそれをダウンロードする。
@@ -24,7 +25,7 @@ class Book
 end
 
 class Downloader
-  attr_reader :book2hash
+  attr_reader :book2url
   def initialize
     
     config={}
@@ -51,53 +52,55 @@ class Downloader
     end
   end
 
-  def get_book_in_bs
-    get_book2hash()
-    return @book2hash.keys
-  end
-
-  def get_book_tuned
+  def get_books_tuned
     get_pdf_titles("https://system.bookscan.co.jp/tunelablist.php")
   end
 
-  def get_book_in_pc
+  def get_books_in_pc
     Dir::glob(@book_folder + "/*.pdf").map{|x| File::basename(x)}
   end
 
 
-  def get_book2hash
-    fp = open "book2hash.txt"
-    @book2hash={}
+  def get_books_in_bs
+    @book2url={}
+    begin 
+      fp = open "booklist_in_bs.txt"
 
-    hashes_old = []
-    while fp.gets
-      (book,hash) =$_.chomp.split("\t")
-      @book2hash[book] = hash
 
+      hashes_old = []
+      while fp.gets
+        (book,url) =$_.chomp.split("\t")
+        @book2url[book] = url
+
+      end
+      fp.close
+    rescue
+      puts "making booklist_in_bs.txt"
     end
-    fp.close
 
-    f = File::open("book2hash.txt", "a")
+    f = File::open("booklist_in_bs.txt", "a")
 
     @agent.get('https://system.bookscan.co.jp/history.php')
     links = @agent.page.links_with(:text => '書籍一覧')
-    links.each do |link|
-      hash = link.href.split("hash=")[1]
 
-      next if @book2hash.values.index(hash)
+    links.each do |link|
+      url = "https://system.bookscan.co.jp/"+link.href
+
+      next if @book2url.values.index(url)
       
       @agent.get(link.href)
       books_link = @agent.page.links_with(:text => /pdf/)
 
     
       books_link.each do |book_link|
-        f.puts book_link.text+"\t"+hash
-        @book2hash[book_link.text] = hash
+        f.puts book_link.text+"\t"+url
+        @book2url[book_link.text] = url
 
       end
       sleep 1
 
     end
+    return @book2url.keys
   end
 
   #private
@@ -129,9 +132,9 @@ end
 
 dl = Downloader.new
 
-books_in_bs = dl.get_book_in_bs
-books_tuned = dl.get_book_tuned
-books_in_pc = dl.get_book_in_pc
+books_in_bs = dl.get_books_in_bs
+books_tuned = dl.get_books_tuned
+books_in_pc = dl.get_books_in_pc
 
 
 #チューンされたがまだダウンロードしていないファイルをダウンロード
@@ -147,7 +150,7 @@ book_in_pc_text = books_in_pc.join(",")
 
 books_in_bs.each do|book|
   unless book_in_pc_text.index(book.split(" ")[-1])
-    puts book+"\t"+dl.book2hash[book]
+    puts book+"\t"+dl.book2url[book]
 
   end
 end
