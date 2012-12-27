@@ -7,13 +7,10 @@ require 'ir_b'
 #もしも、ipad3に最適化されたものがあればそれをダウンロードする。
 
 #TODO
-#持ってない本を、最適化する。
-#最適化にはどうするか？
-#どの本がどのハッシュにあるかの表から読む。
 
 #ハッシュから低速tuneにかける。最大200個。
 #cronで回す。
-#ファイルがないときの処理
+
 
 #未作成
 class Book
@@ -40,8 +37,12 @@ class Downloader
 
     @book_folder = config["bookfolder"]
     @agent = Mechanize.new
+    @agent.user_agent_alias = 'Windows IE 7'
 
     login()
+    @books_in_bs = get_books_in_bs
+    @books_tuned = get_books_tuned
+    @books_in_pc = get_books_in_pc
   end
 
   def download_books(books_id)
@@ -103,6 +104,32 @@ class Downloader
     return @book2url.keys
   end
 
+  def download_tuned_books
+    #チューンされたがまだダウンロードしていないファイルをダウンロード
+    books_in_pc_id = @books_in_pc.map{|b|b.split(" ")[-1]}
+    books_tuned_id_ipad = @books_tuned.select{|b|b.index("ipad")}.map{|b|b.split(" ")[-1]}
+
+    diff_id = books_tuned_id_ipad - books_in_pc_id #tuneされたが、まだdlしていないファイル郡
+  
+    download_books(diff_id)
+
+  end
+
+  def get_undownloaded_books
+    #bookscanにあるが、ダウンロードしていないファイルを表示。
+    book_in_pc_text = @books_in_pc.join(",")
+    @undownloaded_books = []
+
+    @books_in_bs.each do |book| 
+      unless book_in_pc_text.index(book.split(" ")[-1])
+        #puts book+"\t"+dl.book2url[book]
+        @undownloaded_books << book
+
+      end
+    end
+  end
+
+
   #private
   def login
     @agent.get('https://system.bookscan.co.jp/login.php')
@@ -128,29 +155,28 @@ class Downloader
     return pdf_titles
   end
 
+  #未完成
+ 
+  def tune_books
+    @undownloaded_books.each do |book|
+      sleep 1 
+
+      url = @book2url[book]
+      @agent.get(url)
+      book_id  = book.split(" ")[-1] #261p_419905037X.pdf などの部分
+      tune_link = @agent.page.links_with(:href => /#{book_id}/)[-1]
+      
+      @agent.get(tune_link.href)
+       #TODO
+      #formの送信
+
+    end  
+  end
+
 end
 
 dl = Downloader.new
+dl.download_tuned_books
+dl.get_undownloaded_books
+dl.tune_books #未完成
 
-books_in_bs = dl.get_books_in_bs
-books_tuned = dl.get_books_tuned
-books_in_pc = dl.get_books_in_pc
-
-
-#チューンされたがまだダウンロードしていないファイルをダウンロード
-books_in_pc_id = books_in_pc.map{|b|b.split(" ")[-1]}
-books_tuned_id_ipad = books_tuned.select{|b|b.index("ipad")}.map{|b|b.split(" ")[-1]}
-
-diff_id = books_tuned_id_ipad - books_in_pc_id #tuneされたが、まだdlしていないファイル郡
-
-dl.download_books(diff_id)
-
-#bookscanにあるが、ダウンロードしていないファイルを表示。
-book_in_pc_text = books_in_pc.join(",")
-
-books_in_bs.each do|book|
-  unless book_in_pc_text.index(book.split(" ")[-1])
-    puts book+"\t"+dl.book2url[book]
-
-  end
-end
