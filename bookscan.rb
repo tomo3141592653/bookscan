@@ -45,8 +45,81 @@ class Downloader
     @books_in_pc = get_books_in_pc
   end
 
-  def download_books(books_id)
+  def download_tuned_books
+    #チューンされたがまだダウンロードしていないファイルをダウンロード
+    books_in_pc_id = @books_in_pc.map{|b|b.split(" ")[-1]}
+    books_tuned_id_ipad = @books_tuned.select{|b|b.index("ipad")}.map{|b|b.split(" ")[-1]}
+
+    diff_id = books_tuned_id_ipad - books_in_pc_id #tuneされたが、まだdlしていないファイル郡
+
+    diff_id.uniq! #同じ本が複数回tuneされていることがある。
+  
+    download_books_by_ids(diff_id)
+
+  end
+
+  def get_undownloaded_books
+    #bookscanにあるが、ダウンロードしていないファイルを表示。
+    book_in_pc_text = @books_in_pc.join(",")
+    @undownloaded_books = []
+    fp = open("books_undownload.txt","w")
+
+    @books_in_bs.each do |book| 
+      unless book_in_pc_text.index(book.split(" ")[-1])
+        fp.puts book+"\t"+book2url[book]
+        @undownloaded_books << book
+
+      end
+    end
+  end
+
+
+  #private
+  def login
+    @agent.get('https://system.bookscan.co.jp/login.php')
+    form = @agent.page.forms[0]
+    form.field_with(:name => 'email').value = @id
+    form.field_with(:name => 'password').value = @pass
+    form.click_button
+  end
+
+  def download(book)
+    link= @agent.page.links_with(:href => /f=ipad.*#{book}/)[0]
+    puts link.text
+    @agent.get(link.href).save(@book_folder + "/#{link.text}")
+  end
+
+  def get_pdf_titles(url)
+    @agent.get(url)
+    links = @agent.page.links_with(:href => /pdf/)
+    pdf_titles = []
+    links.each do |link|
+      pdf_titles << link.text
+    end
+    return pdf_titles
+  end
+
+  #未完成
+  def tune_books
+    @undownloaded_books.each do |book|
+      sleep 1 
+
+      url = @book2url[book]
+      @agent.get(url)
+      book_id  = book.split(" ")[-1] #261p_419905037X.pdf などの部分
+      tune_link = @agent.page.links_with(:href => /#{book_id}/)[-1]
+      
+      @agent.get(tune_link.href)
+       #TODO
+      #formの送信
+
+    end  
+  end
+
+
+  def download_books_by_ids(books_id)
     @agent.pluggable_parser.default = Mechanize::Download
+    puts "going to download #{books_id.length} books"
     books_id.each do |book|
       @agent.get('https://system.bookscan.co.jp/tunelablist.php')
       download(book)
@@ -104,79 +177,17 @@ class Downloader
     return @book2url.keys
   end
 
-  def download_tuned_books
-    #チューンされたがまだダウンロードしていないファイルをダウンロード
-    books_in_pc_id = @books_in_pc.map{|b|b.split(" ")[-1]}
-    books_tuned_id_ipad = @books_tuned.select{|b|b.index("ipad")}.map{|b|b.split(" ")[-1]}
-
-    diff_id = books_tuned_id_ipad - books_in_pc_id #tuneされたが、まだdlしていないファイル郡
-  
-    download_books(diff_id)
-
-  end
-
-  def get_undownloaded_books
-    #bookscanにあるが、ダウンロードしていないファイルを表示。
-    book_in_pc_text = @books_in_pc.join(",")
-    @undownloaded_books = []
-
-    @books_in_bs.each do |book| 
-      unless book_in_pc_text.index(book.split(" ")[-1])
-        #puts book+"\t"+dl.book2url[book]
-        @undownloaded_books << book
-
-      end
-    end
-  end
-
-
-  #private
-  def login
-    @agent.get('https://system.bookscan.co.jp/login.php')
-    form = @agent.page.forms[0]
-    form.field_with(:name => 'email').value = @id
-    form.field_with(:name => 'password').value = @pass
-    form.click_button
-  end
-
-  def download(book)
-    link= @agent.page.links_with(:href => /f=ipad.*#{book}/)[0]
-    puts link.text
-    @agent.get(link.href).save(@book_folder + "/#{link.text}")
-  end
-
-  def get_pdf_titles(url)
-    @agent.get(url)
-    links = @agent.page.links_with(:href => /pdf/)
-    pdf_titles = []
-    links.each do |link|
-      pdf_titles << link.text
-    end
-    return pdf_titles
-  end
-
-  #未完成
- 
-  def tune_books
-    @undownloaded_books.each do |book|
-      sleep 1 
-
-      url = @book2url[book]
-      @agent.get(url)
-      book_id  = book.split(" ")[-1] #261p_419905037X.pdf などの部分
-      tune_link = @agent.page.links_with(:href => /#{book_id}/)[-1]
-      
-      @agent.get(tune_link.href)
-       #TODO
-      #formの送信
-
-    end  
-  end
 
 end
 
 dl = Downloader.new
+
+puts "download_tuned_books"
+#チューンされたがまだダウンロードしていないファイルをダウンロード
 dl.download_tuned_books
+puts ""
+
+puts "get_undownloaded_books"
 dl.get_undownloaded_books
-dl.tune_books #未完成
+#dl.tune_books #未完成
 
